@@ -1,0 +1,27 @@
+
+CMD1 (python)
+cd "c:\Users\websoft\Desktop\Ray\Websoft內部專案\MotionAnalysisSystem\MotionAnalysisSystem\src\pose-api"
+
+.\.venv\Scripts\activate.bat
+
+uvicorn main:app --reload --port 8000
+
+http://127.0.0.1:8000/docs (開啟這個url)
+
+taskkill /PID 3868 /F
+(終止用)
+===============
+CMD2 (C#)
+
+cd "c:\Users\websoft\Desktop\Ray\Websoft內部專案\MotionAnalysisSystem\MotionAnalysisSystem\src\MotionAnalysis.Web"
+dotnet run
+
+http://127.0.0.1:5126/Pose/Index (開啟這個url)
+
+
+taskkill /PID 3404 /F (終止用)
+
+
+請根據MotionAnalysisSystem_第一階段開發文件這個文件，
+目前C#可以接收到動作關節節點，功能算ok，請問這個系統的下一步功能要進行哪個環節?
+這是一個第二階段的文件

@@ -1,0 +1,964 @@
+# 多運動動作規格與輸出資料定義
+
+## 1. 設計原則
+
+所有動作分析均分成五層：
+
+```text
+影片輸入規格
+→ 動作階段定義
+→ 分析特徵定義
+→ 規則與評分定義
+→ 統一輸出格式
+```
+
+採用此設計的理由：
+
+1. 不同動作可以共用影片處理、Pose Detection 與輸出 API。
+2. 新增動作時，只需增加動作設定與分析器。
+3. 前端不需要為每個動作重新設計資料結構。
+4. 未來替換 MediaPipe、ONNX 或其他模型時，輸出格式可保持不變。
+5. 可清楚區分「偵測到的事實」與「規則判斷結果」。
+
+---
+
+# 2. 動作基本規格
+
+每一種動作都必須定義以下內容。
+
+```json
+{
+  "movementCode": "badminton_smash",
+  "displayName": "羽球殺球",
+  "category": "racket",
+  "movementPattern": "single_explosive",
+  "supportedViews": [],
+  "minimumFps": 60,
+  "requiredBodyLandmarks": [],
+  "requiredObjects": [],
+  "phases": [],
+  "requiredFeatures": [],
+  "rules": []
+}
+```
+
+## 欄位說明
+
+| 欄位                    | 定義       | 定義理由                |
+| --------------------- | -------- | ------------------- |
+| movementCode          | 系統內唯一代碼  | 避免使用中文名稱作為程式判斷依據    |
+| displayName           | 顯示名稱     | 提供前端與報告使用           |
+| category              | 動作類型     | 方便共用相同類型的分析邏輯       |
+| movementPattern       | 動作形式     | 區分週期型、單次爆發型、連續型     |
+| supportedViews        | 支援拍攝角度   | 不同角度能判斷的項目不同        |
+| minimumFps            | 建議最低 FPS | 高速動作若 FPS 過低會漏掉關鍵事件 |
+| requiredBodyLandmarks | 必要人體節點   | 節點缺失時不得強制輸出評分       |
+| requiredObjects       | 必要器材     | 揮拍與打擊不能只分析人體        |
+| phases                | 動作階段     | 讓不同時間點可使用不同判斷規則     |
+| requiredFeatures      | 分析特徵     | 明確指定此動作真正需要的資料      |
+| rules                 | 動作規則     | 將門檻與判斷邏輯設定化         |
+
+---
+
+# 3. 動作類型定義
+
+## 3.1 movementPattern
+
+```text
+repetitive
+週期重複型，例如深蹲、伏地挺身、二頭彎舉。
+
+single_explosive
+單次爆發型，例如羽球殺球、棒球投球。
+
+continuous_skill
+連續技術型，例如羽球多拍、網球對拉。
+
+bilateral_sequence
+左右交替型，例如弓箭步、跑步步態。
+```
+
+定義理由：
+
+不同型態的動作，不應使用相同的次數切割方式。
+
+例如：
+
+* 深蹲可用髖部上下位移計算次數。
+* 投球需辨識抬腿、踏地、出手等事件。
+* 羽球連續多拍需先切割每一次揮拍。
+
+---
+
+# 4. 統一分析輸出格式
+
+```json
+{
+  "schemaVersion": "1.0",
+  "analysisId": "uuid",
+  "success": true,
+  "movement": {},
+  "input": {},
+  "quality": {},
+  "detection": {},
+  "events": [],
+  "phases": [],
+  "metrics": {},
+  "evaluations": [],
+  "summary": {},
+  "outputs": {},
+  "limitations": []
+}
+```
+
+---
+
+## 4.1 movement
+
+```json
+{
+  "sportType": "badminton",
+  "movementCode": "badminton_smash",
+  "movementName": "羽球殺球",
+  "category": "racket",
+  "dominantSide": "right",
+  "cameraView": "rear_diagonal"
+}
+```
+
+定義理由：
+
+同一種人體動作在不同運動、慣用側與拍攝角度下，判斷方式可能不同。
+
+---
+
+## 4.2 input
+
+```json
+{
+  "fps": 60,
+  "width": 1920,
+  "height": 1080,
+  "durationSec": 3.5,
+  "totalFrames": 210,
+  "analyzedFrameCount": 210,
+  "frameInterval": 1
+}
+```
+
+定義理由：
+
+FPS、解析度與抽幀方式會直接影響分析可信度，必須保留於結果中。
+
+---
+
+## 4.3 quality
+
+```json
+{
+  "usable": true,
+  "overallScore": 88,
+  "bodyFullyVisible": true,
+  "keyLandmarkVisibility": 0.91,
+  "motionBlurLevel": "low",
+  "fpsSuitable": true,
+  "cameraViewSuitable": true,
+  "warnings": []
+}
+```
+
+定義理由：
+
+分析結果必須先說明影片是否適合分析，不能只輸出分數。
+
+`overallScore` 是影片可分析品質，不是動作品質分數。
+
+---
+
+## 4.4 detection
+
+```json
+{
+  "poseModel": "mediapipe_pose",
+  "poseCount": 1,
+  "equipmentDetected": true,
+  "equipmentType": "racket",
+  "ballDetected": false,
+  "averagePoseConfidence": 0.93,
+  "averageEquipmentConfidence": 0.84
+}
+```
+
+定義理由：
+
+讓使用者知道分析依據是人體、器材或球體，以及偵測可信程度。
+
+---
+
+## 4.5 events
+
+```json
+[
+  {
+    "eventCode": "contact",
+    "frameIndex": 126,
+    "timeSec": 2.1,
+    "confidence": 0.82,
+    "detectionMethod": "racket_wrist_velocity_peak"
+  }
+]
+```
+
+事件範例：
+
+```text
+bottom_position
+foot_contact
+ball_release
+racket_contact
+bat_contact
+maximum_external_rotation
+```
+
+定義理由：
+
+高速運動的分析核心通常不是平均角度，而是特定關鍵事件發生的時間與姿勢。
+
+---
+
+## 4.6 phases
+
+```json
+[
+  {
+    "phaseCode": "acceleration",
+    "startFrame": 90,
+    "endFrame": 126,
+    "durationSec": 0.6,
+    "confidence": 0.88
+  }
+]
+```
+
+定義理由：
+
+相同角度在不同階段可能代表不同意義。
+
+例如投球手肘彎曲：
+
+* 準備期可能正常。
+* 出手期若時序異常，可能代表動作鏈問題。
+
+---
+
+## 4.7 metrics
+
+```json
+{
+  "leftKneeMinAngleDeg": 78.4,
+  "rightKneeMinAngleDeg": 81.2,
+  "trunkForwardLeanMaxDeg": 34.5,
+  "hipShoulderSeparationMaxDeg": 27.8,
+  "rightWristPeakSpeedNormalized": 4.2
+}
+```
+
+定義理由：
+
+`metrics` 只存放量測結果，不直接放「好或不好」。
+
+如此可以將量測與規則判斷分離。
+
+---
+
+## 4.8 evaluations
+
+```json
+[
+  {
+    "ruleCode": "TRUNK_LEAN",
+    "status": "warning",
+    "severity": "medium",
+    "measuredValue": 34.5,
+    "unit": "degree",
+    "referenceRange": {
+      "min": 10,
+      "max": 30
+    },
+    "confidence": 0.87,
+    "messageCode": "TRUNK_LEAN_EXCESSIVE"
+  }
+]
+```
+
+`status`：
+
+```text
+pass
+warning
+fail
+not_applicable
+insufficient_data
+```
+
+定義理由：
+
+必須允許輸出 `insufficient_data`，避免資料不足時被誤判為錯誤動作。
+
+---
+
+## 4.9 summary
+
+```json
+{
+  "overallScore": 82,
+  "confidence": 0.86,
+  "strengths": [
+    "動作階段完整",
+    "左右下肢穩定"
+  ],
+  "primaryIssues": [
+    "加速階段軀幹旋轉較晚"
+  ],
+  "secondaryIssues": [],
+  "recommendationCodes": [
+    "IMPROVE_HIP_TRUNK_SEQUENCE"
+  ]
+}
+```
+
+定義理由：
+
+報告應區分：
+
+* 原始量測。
+* 規則判斷。
+* 最後摘要。
+
+避免前端或 LLM 自行從大量逐幀資料推測。
+
+---
+
+## 4.10 outputs
+
+```json
+{
+  "annotatedVideoUrl": null,
+  "skeletonVideoUrl": null,
+  "trajectoryVideoUrl": null,
+  "keyFrameImages": [],
+  "rawDataUrl": null
+}
+```
+
+定義理由：
+
+影片與完整逐幀資料通常很大，不適合全部塞入主要 API JSON。
+
+---
+
+## 4.11 limitations
+
+```json
+[
+  {
+    "code": "SINGLE_VIEW_2D_LIMITATION",
+    "message": "單鏡頭影片無法精確量測深度方向旋轉。"
+  }
+]
+```
+
+定義理由：
+
+系統必須主動揭露分析限制，特別是高速、遮擋與三維旋轉動作。
+
+---
+
+# 5. 共用 Metrics 命名規則
+
+建議格式：
+
+```text
+身體部位 + 指標 + 統計方式 + 單位
+```
+
+例如：
+
+```text
+rightElbowMinAngleDeg
+rightWristPeakSpeedNormalized
+pelvisRotationMaxDeg
+trunkLeanAtContactDeg
+leftRightKneeAngleDiffDeg
+```
+
+命名理由：
+
+1. 從名稱即可知道部位、指標及單位。
+2. 避免 `angle1`、`speed2` 等無法維護的名稱。
+3. 不同分析器可以共用指標。
+4. 方便未來建立資料庫與圖表。
+
+---
+
+# 6. 健身動作規格
+
+## 6.1 深蹲 Squat
+
+```json
+{
+  "movementCode": "squat",
+  "category": "strength",
+  "movementPattern": "repetitive",
+  "supportedViews": [
+    "front",
+    "side_left",
+    "side_right"
+  ],
+  "minimumFps": 30,
+  "requiredObjects": [],
+  "phases": [
+    "setup",
+    "descent",
+    "bottom",
+    "ascent",
+    "finish"
+  ]
+}
+```
+
+### 輸出 Metrics
+
+```text
+repetitionCount
+leftKneeMinAngleDeg
+rightKneeMinAngleDeg
+hipMinAngleDeg
+trunkForwardLeanMaxDeg
+leftRightKneeAngleDiffDeg
+hipVerticalDisplacementNormalized
+descentDurationSec
+bottomDurationSec
+ascentDurationSec
+```
+
+### 定義理由
+
+* 膝髖角度：判斷動作深度及下肢屈曲程度。
+* 軀幹前傾：評估側面動作控制。
+* 左右差異：評估正面對稱性。
+* 時間參數：區分控制下降與快速反彈。
+* 髖部位移：比單一膝角更適合協助判斷深度。
+
+---
+
+## 6.2 硬舉 Deadlift
+
+### 動作階段
+
+```text
+setup
+initial_pull
+knee_pass
+lockout
+descent
+finish
+```
+
+### 輸出 Metrics
+
+```text
+trunkAngleAtSetupDeg
+trunkAngleVariationDeg
+hipExtensionRangeDeg
+kneeExtensionRangeDeg
+hipKneeExtensionTimingDiffSec
+shoulderHipVerticalTimingDiffSec
+leftRightHipHeightDiffNormalized
+```
+
+### 定義理由
+
+硬舉的核心不是最低蹲深，而是：
+
+* 脊柱與軀幹姿勢是否穩定。
+* 髖膝伸展時序。
+* 起槓後身體各部位是否同步。
+
+注意：單鏡頭 Pose Detection 只能量測外觀姿勢，不能直接判斷脊椎負荷。
+
+---
+
+## 6.3 弓箭步 Lunge
+
+### 動作階段
+
+```text
+setup
+step
+descent
+bottom
+ascent
+return
+```
+
+### 輸出 Metrics
+
+```text
+frontKneeMinAngleDeg
+rearKneeMinAngleDeg
+frontShinAngleDeg
+pelvisLateralTiltMaxDeg
+trunkLateralLeanMaxDeg
+stepLengthNormalized
+leftRightPerformanceDiff
+```
+
+### 定義理由
+
+弓箭步屬左右交替動作，因此除單次動作外，也必須比較左右側表現差異。
+
+---
+
+# 7. 羽球與網球規格
+
+## 7.1 羽球殺球 Badminton Smash
+
+```json
+{
+  "movementCode": "badminton_smash",
+  "category": "racket",
+  "movementPattern": "single_explosive",
+  "supportedViews": [
+    "side",
+    "rear_diagonal"
+  ],
+  "minimumFps": 60,
+  "requiredObjects": [
+    "racket"
+  ],
+  "phases": [
+    "ready",
+    "backswing",
+    "pre_acceleration",
+    "acceleration",
+    "contact",
+    "follow_through",
+    "recovery"
+  ]
+}
+```
+
+### 輸出 Metrics
+
+```text
+racketSideShoulderMaxAngleDeg
+racketSideElbowMinAngleDeg
+racketSideElbowAngleAtContactDeg
+wristHeightAtContactNormalized
+contactPointRelativeToShoulder
+pelvisRotationMaxDeg
+trunkRotationMaxDeg
+hipShoulderSeparationMaxDeg
+racketHeadPeakSpeedNormalized
+wristPeakSpeedNormalized
+lowerBodyToUpperBodyTimingSec
+recoveryDurationSec
+```
+
+### 定義理由
+
+羽球殺球需要分析：
+
+1. 下肢與軀幹是否先啟動。
+2. 肩、肘、腕是否形成合理動作鏈。
+3. 擊球點是否位於合適高度與身體前上方。
+4. 擊球後是否能完成隨揮與回位。
+
+只追蹤人體時，可分析身體時序，但無法精確輸出拍頭速度與擊球點。
+
+---
+
+## 7.2 網球正手 Tennis Forehand
+
+### 動作階段
+
+```text
+ready
+unit_turn
+backswing
+forward_swing
+contact
+follow_through
+recovery
+```
+
+### 輸出 Metrics
+
+```text
+pelvisRotationAtContactDeg
+trunkRotationAtContactDeg
+hipShoulderSeparationMaxDeg
+racketHandDistanceFromTorsoNormalized
+contactPointRelativeToLeadHip
+racketTrajectoryAngleDeg
+headDisplacementDuringSwingNormalized
+weightTransferDistanceNormalized
+followThroughHeightNormalized
+```
+
+### 定義理由
+
+網球正手除了上肢揮拍，還需要分析：
+
+* 單位轉體。
+* 骨盆與軀幹旋轉。
+* 擊球點位置。
+* 重心從後側向前側移動。
+* 隨揮方向。
+
+---
+
+## 7.3 網球發球 Tennis Serve
+
+### 動作階段
+
+```text
+setup
+ball_toss
+loading
+racket_drop
+acceleration
+contact
+follow_through
+landing
+```
+
+### 輸出 Metrics
+
+```text
+tossHandPeakHeightNormalized
+kneeFlexionMaxDeg
+trunkExtensionMaxDeg
+racketDropDepthNormalized
+servingElbowAngleAtContactDeg
+contactHeightNormalized
+hipShoulderSeparationMaxDeg
+landingBalanceScore
+```
+
+### 定義理由
+
+網球發球同時包含：
+
+* 拋球。
+* 下肢蓄力。
+* 軀幹伸展與旋轉。
+* 球拍下沉。
+* 高點擊球。
+* 落地平衡。
+
+因此不能直接沿用一般正手揮拍規格。
+
+---
+
+# 8. 棒球投球規格
+
+```json
+{
+  "movementCode": "baseball_pitch",
+  "category": "throwing",
+  "movementPattern": "single_explosive",
+  "supportedViews": [
+    "side",
+    "front",
+    "rear"
+  ],
+  "minimumFps": 120,
+  "requiredObjects": [
+    "ball"
+  ],
+  "phases": [
+    "setup",
+    "leg_lift",
+    "stride",
+    "foot_contact",
+    "arm_cocking",
+    "arm_acceleration",
+    "ball_release",
+    "deceleration",
+    "follow_through"
+  ]
+}
+```
+
+## 輸出 Metrics
+
+```text
+leadKneeAngleAtFootContactDeg
+strideLengthNormalized
+pelvisRotationAtFootContactDeg
+trunkRotationAtFootContactDeg
+hipShoulderSeparationMaxDeg
+throwingElbowAngleAtFootContactDeg
+throwingElbowAngleAtReleaseDeg
+wristPositionAtReleaseNormalized
+trunkForwardTiltAtReleaseDeg
+footContactToReleaseDurationSec
+pelvisToTrunkPeakTimingSec
+trunkToArmPeakTimingSec
+followThroughBalanceScore
+```
+
+## 定義理由
+
+投球的主要分析重點是動力鏈時序：
+
+```text
+下肢
+→ 骨盆
+→ 軀幹
+→ 肩
+→ 肘
+→ 手腕
+→ 球
+```
+
+只使用角度最大值不足以判斷投球，必須保留各部位達到速度高峰的時間差。
+
+注意：
+
+* MediaPipe 單鏡頭不適合精確量測肩關節內外旋。
+* `maximumExternalRotation` 若無高 FPS、多視角或專用模型，不應輸出精確角度。
+* 可以輸出事件估計，但必須標記信心值與限制。
+
+---
+
+# 9. 棒球打擊規格
+
+```json
+{
+  "movementCode": "baseball_swing",
+  "category": "batting",
+  "movementPattern": "single_explosive",
+  "supportedViews": [
+    "side",
+    "front",
+    "rear_diagonal"
+  ],
+  "minimumFps": 120,
+  "requiredObjects": [
+    "bat",
+    "ball"
+  ],
+  "phases": [
+    "stance",
+    "load",
+    "stride",
+    "launch",
+    "acceleration",
+    "contact",
+    "extension",
+    "follow_through"
+  ]
+}
+```
+
+## 輸出 Metrics
+
+```text
+stanceWidthNormalized
+strideLengthNormalized
+headDisplacementNormalized
+pelvisRotationAtLaunchDeg
+trunkRotationAtLaunchDeg
+hipShoulderSeparationMaxDeg
+leadKneeAngleAtContactDeg
+handPositionAtLaunchNormalized
+batHeadPeakSpeedNormalized
+batPathAngleDeg
+contactPointRelativeToLeadHip
+pelvisToTrunkPeakTimingSec
+trunkToBatPeakTimingSec
+followThroughBalanceScore
+```
+
+## 定義理由
+
+棒球打擊需同時分析：
+
+* 下肢重心轉移。
+* 骨盆先於軀幹啟動。
+* 手部與球棒路徑。
+* 擊球點。
+* 頭部穩定性。
+* 隨揮平衡。
+
+沒有球棒追蹤時，不應輸出：
+
+```text
+batHeadPeakSpeed
+batPathAngle
+contactPoint
+```
+
+應改為：
+
+```text
+status = insufficient_data
+```
+
+---
+
+# 10. 規則定義格式
+
+```json
+{
+  "ruleCode": "SQUAT_TRUNK_LEAN",
+  "movementCode": "squat",
+  "supportedViews": [
+    "side_left",
+    "side_right"
+  ],
+  "metricCode": "trunkForwardLeanMaxDeg",
+  "operator": ">",
+  "warningThreshold": 30,
+  "failThreshold": 40,
+  "minimumConfidence": 0.8,
+  "severity": "medium"
+}
+```
+
+## 定義理由
+
+同一個 Metric 可以被不同動作使用，但門檻值不同。
+
+例如：
+
+* 深蹲軀幹前傾門檻。
+* 硬舉軀幹角度門檻。
+* 網球擊球時軀幹旋轉門檻。
+
+因此 Metric 與 Rule 必須分開。
+
+---
+
+# 11. Confidence 定義
+
+每項結果都應包含可信度：
+
+```json
+{
+  "value": 32.4,
+  "unit": "degree",
+  "confidence": 0.87,
+  "status": "valid"
+}
+```
+
+`status`：
+
+```text
+valid
+estimated
+low_confidence
+missing
+not_supported
+```
+
+定義理由：
+
+不同結果的準確度不會相同。
+
+例如：
+
+* 側面膝角可能可信。
+* 單鏡頭肩部旋轉可能只是估計。
+* 被遮住的手腕可能無法分析。
+
+---
+
+# 12. 原始逐幀資料格式
+
+```json
+{
+  "frameIndex": 126,
+  "timeSec": 2.1,
+  "landmarks": [],
+  "equipment": [],
+  "frameFeatures": {},
+  "phaseCode": "contact",
+  "events": [
+    "racket_contact"
+  ]
+}
+```
+
+逐幀資料建議獨立儲存，不直接放入一般結果頁 API。
+
+理由：
+
+1. 資料量非常大。
+2. 一般使用者只需要摘要。
+3. 開發與研究人員才需要完整資料。
+4. 可避免 C# 頁面載入速度過慢。
+
+---
+
+# 13. 第一版建議正式支援範圍
+
+第一版建議先正式定義並開發：
+
+```text
+深蹲
+羽球殺球
+棒球投球
+```
+
+原因：
+
+* 深蹲驗證週期型動作。
+* 羽球殺球驗證球拍與揮拍動作。
+* 棒球投球驗證高速、單次爆發與動作鏈時序。
+
+這三種能驗證系統架構是否真正具備跨運動擴充能力。
+
+---
+
+# 14. 開發時的必要限制
+
+初期 Metric 應分成三個等級。
+
+## Level 1：可由目前 Pose Detection 實作
+
+```text
+2D 關節角度
+人體節點位移
+動作時間
+左右對稱
+關節軌跡
+動作階段
+```
+
+## Level 2：需要器材或球體偵測
+
+```text
+球拍軌跡
+球棒軌跡
+擊球點
+出手點
+拍頭或棒頭相對速度
+```
+
+## Level 3：需要高 FPS、多視角或進階模型
+
+```text
+精確三維旋轉
+精確肩關節外旋
+真實球速
+真實拍頭速度
+三維重心
+生物力學力矩與關節負荷
+```
+
+如此分類可避免系統在技術尚未具備時，輸出看似精確但實際不可靠的數字。
