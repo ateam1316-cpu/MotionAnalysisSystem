@@ -1,0 +1,58 @@
+{
+  "statuses": {
+    "ok": "ok",
+    "bilateralUnavailable": "bilateral_landmarks_unavailable",
+    "landmarksUnavailable": "landmarks_unavailable"
+  },
+  "calculationModes": {
+    "bilateralMidpoint": "bilateral_midpoint",
+    "singleSideProxy": "single_side_proxy",
+    "bilateral2d": "bilateral_2d",
+    "singleSide2d": "single_side_2d",
+    "landmarkTriple2d": "landmark_triple_2d",
+    "bilateralLineTilt2d": "bilateral_line_tilt_2d"
+  },
+  "validityByMode": {
+    "bilateral_2d": {
+      "validFor": [
+        "within_video_temporal_comparison",
+        "front_or_rear_view_analysis",
+        "left_right_symmetry"
+      ],
+      "notValidFor": [
+        "true_3d_trunk_angle"
+      ]
+    },
+    "single_side_2d": {
+      "validFor": [
+        "within_video_temporal_comparison",
+        "side_view_squat_analysis",
+        "side_view_movement_analysis"
+      ],
+      "notValidFor": [
+        "left_right_symmetry",
+        "true_3d_trunk_angle",
+        "cross_camera_angle_comparison"
+      ]
+    },
+    "landmark_triple_2d": {
+      "validFor": [
+        "within_video_temporal_comparison",
+        "joint_flexion_extension_2d"
+      ],
+      "notValidFor": [
+        "true_3d_joint_angle"
+      ]
+    },
+    "bilateral_line_tilt_2d": {
+      "validFor": [
+        "within_video_temporal_comparison",
+        "left_right_shoulder_or_pelvis_tilt"
+      ],
+      "notValidFor": [
+        "true_3d_tilt",
+        "single_side_proxy_estimation"
+      ]
+    }
+  }
+}

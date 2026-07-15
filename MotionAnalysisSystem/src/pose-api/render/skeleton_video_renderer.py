@@ -1,4 +1,4 @@
-"""Draw MediaPipe-style skeleton overlay video."""
+"""Draw MediaPipe-style skeleton overlay video with optional joint angles."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from core.angle_overlay import resolve_angle_overlays
+from core.render_thresholds import is_drawable
 from render.browser_video_writer import create_video_writer
 
 # MediaPipe Pose connections (subset of landmark index pairs)
@@ -35,12 +37,14 @@ class SkeletonVideoRenderer:
         height: int,
         *,
         browser_playable: bool = False,
+        angle_map: Optional[Dict[str, str]] = None,
     ) -> Optional[str]:
         if not frames_data:
             return None
 
         by_index = {f["frameIndex"]: f for f in frames_data}
         out_fps = max(fps / frame_interval, 1.0) if fps > 0 else 10.0
+        angle_map = angle_map or {}
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -61,6 +65,14 @@ class SkeletonVideoRenderer:
                         fd = by_index[frame_index]
                         if fd.get("poseDetected") and fd.get("landmarks"):
                             self._draw_pose(overlay, fd["landmarks"])
+                            if angle_map:
+                                overlays = resolve_angle_overlays(
+                                    fd.get("jointAngles") or {},
+                                    fd.get("landmarks") or [],
+                                    fd.get("derivedPoints") or {},
+                                    angle_map,
+                                )
+                                self._draw_angles(overlay, overlays)
                         writer.write(overlay)
 
                     frame_index += 1
@@ -73,9 +85,7 @@ class SkeletonVideoRenderer:
 
     def _draw_pose(self, frame: np.ndarray, landmarks: List[dict]) -> None:
         by_index: Dict[int, dict] = {
-            lm["index"]: lm
-            for lm in landmarks
-            if lm.get("status") not in ("missing",)
+            lm["index"]: lm for lm in landmarks if is_drawable(lm)
         }
 
         for a, b in POSE_CONNECTIONS:
@@ -91,5 +101,35 @@ class SkeletonVideoRenderer:
                 )
 
         for lm in by_index.values():
-            color = (0, 255, 0) if lm.get("status") == "valid" else (0, 165, 255)
-            cv2.circle(frame, (lm["pixelX"], lm["pixelY"]), 4, color, -1)
+            cv2.circle(frame, (lm["pixelX"], lm["pixelY"]), 4, (0, 255, 0), -1)
+
+    def _draw_angles(
+        self,
+        frame: np.ndarray,
+        overlays: List[Tuple[str, float, int, int]],
+    ) -> None:
+        for i, (label, _deg, px, py) in enumerate(overlays):
+            # Slight stagger so nearby joints are less overlapping.
+            ox = 8 + (i % 3) * 2
+            oy = -8 - (i % 4) * 12
+            org = (px + ox, max(16, py + oy))
+            cv2.putText(
+                frame,
+                label,
+                org,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                (0, 0, 0),
+                3,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                frame,
+                label,
+                org,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                (0, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )

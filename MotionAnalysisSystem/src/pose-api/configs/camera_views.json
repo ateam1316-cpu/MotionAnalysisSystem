@@ -19,17 +19,17 @@
     ]
   },
   "side_left": {
+    "excludeBodySide": "right",
     "preferredLandmarks": [
       "LEFT_SHOULDER", "LEFT_HIP", "LEFT_KNEE", "LEFT_ANKLE",
-      "LEFT_ELBOW", "LEFT_WRIST", "LEFT_HEEL", "LEFT_FOOT_INDEX",
-      "RIGHT_SHOULDER", "RIGHT_HIP"
+      "LEFT_ELBOW", "LEFT_WRIST", "LEFT_HEEL", "LEFT_FOOT_INDEX"
     ]
   },
   "side_right": {
+    "excludeBodySide": "left",
     "preferredLandmarks": [
       "RIGHT_SHOULDER", "RIGHT_HIP", "RIGHT_KNEE", "RIGHT_ANKLE",
-      "RIGHT_ELBOW", "RIGHT_WRIST", "RIGHT_HEEL", "RIGHT_FOOT_INDEX",
-      "LEFT_SHOULDER", "LEFT_HIP"
+      "RIGHT_ELBOW", "RIGHT_WRIST", "RIGHT_HEEL", "RIGHT_FOOT_INDEX"
     ]
   },
   "front_diagonal_left": {

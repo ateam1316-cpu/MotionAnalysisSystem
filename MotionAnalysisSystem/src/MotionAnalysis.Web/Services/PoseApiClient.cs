@@ -69,7 +69,8 @@ public class PoseApiClient
         int frameInterval,
         bool generateSkeletonVideo,
         bool generateTrajectoryVideo,
-        bool browserPlayableVideo)
+        bool browserPlayableVideo,
+        bool compareWithFull = true)
     {
         using var form = new MultipartFormDataContent();
 
@@ -91,6 +92,8 @@ public class PoseApiClient
         form.Add(new StringContent(generateSkeletonVideo ? "true" : "false", Encoding.UTF8), "generateSkeletonVideo");
         form.Add(new StringContent(generateTrajectoryVideo ? "true" : "false", Encoding.UTF8), "generateTrajectoryVideo");
         form.Add(new StringContent(browserPlayableVideo ? "true" : "false", Encoding.UTF8), "browserPlayableVideo");
+        form.Add(new StringContent("lite", Encoding.UTF8), "modelVariant");
+        form.Add(new StringContent(compareWithFull ? "true" : "false", Encoding.UTF8), "compareWithFull");
 
         var response = await _httpClient.PostAsync("/analyze/video", form);
         var responseText = await response.Content.ReadAsStringAsync();
@@ -103,6 +106,21 @@ public class PoseApiClient
         return responseText;
     }
 
+    public async Task<string> CompareFullAsync(string analysisId)
+    {
+        var response = await _httpClient.PostAsync(
+            $"/analyze/{Uri.EscapeDataString(analysisId)}/compare-full",
+            content: null);
+        var responseText = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new Exception($"Pose API compare-full error: {response.StatusCode}, {responseText}");
+        }
+
+        return responseText;
+    }
+
     public static void PopulateResultFields(VideoAnalyzeViewModel model, string resultJson)
     {
         model.AnalysisJson = resultJson;
@@ -110,7 +128,16 @@ public class PoseApiClient
         model.AnalysisId = null;
         model.SkeletonVideoUrl = null;
         model.TrajectoryVideoUrl = null;
+        model.SkeletonLiteVideoUrl = null;
+        model.TrajectoryLiteVideoUrl = null;
+        model.SkeletonFullVideoUrl = null;
+        model.TrajectoryFullVideoUrl = null;
         model.RawJsonUrl = null;
+        model.RawLiteJsonUrl = null;
+        model.RawFullJsonUrl = null;
+        model.ModelComparisonStatus = null;
+        model.OverallDiffPercent = null;
+        model.ModelComparisonDescription = null;
 
         try
         {
@@ -124,19 +151,49 @@ public class PoseApiClient
 
             if (root.TryGetProperty("outputFiles", out var files) && files.ValueKind == JsonValueKind.Object)
             {
-                if (files.TryGetProperty("skeletonVideoUrl", out var sk) && sk.ValueKind == JsonValueKind.String)
+                model.SkeletonVideoUrl = GetStringProp(files, "skeletonVideoUrl");
+                model.TrajectoryVideoUrl = GetStringProp(files, "trajectoryVideoUrl");
+                model.SkeletonLiteVideoUrl = GetStringProp(files, "skeletonLiteVideoUrl")
+                    ?? model.SkeletonVideoUrl;
+                model.TrajectoryLiteVideoUrl = GetStringProp(files, "trajectoryLiteVideoUrl")
+                    ?? model.TrajectoryVideoUrl;
+                model.SkeletonFullVideoUrl = GetStringProp(files, "skeletonFullVideoUrl");
+                model.TrajectoryFullVideoUrl = GetStringProp(files, "trajectoryFullVideoUrl");
+                model.RawJsonUrl = GetStringProp(files, "rawJsonUrl");
+                model.RawLiteJsonUrl = GetStringProp(files, "rawLiteJsonUrl")
+                    ?? model.RawJsonUrl;
+                model.RawFullJsonUrl = GetStringProp(files, "rawFullJsonUrl");
+            }
+
+            if (root.TryGetProperty("modelComparison", out var cmp)
+                && cmp.ValueKind == JsonValueKind.Object)
+            {
+                model.ModelComparisonStatus = GetStringProp(cmp, "status");
+                model.ModelComparisonDescription = GetStringProp(cmp, "metricDescription");
+
+                if (cmp.TryGetProperty("summary", out var summary)
+                    && summary.ValueKind == JsonValueKind.Object
+                    && summary.TryGetProperty("overallDiffPercent", out var pct)
+                    && pct.ValueKind == JsonValueKind.Number)
                 {
-                    model.SkeletonVideoUrl = sk.GetString();
+                    model.OverallDiffPercent = pct.GetDouble();
                 }
 
-                if (files.TryGetProperty("trajectoryVideoUrl", out var tr) && tr.ValueKind == JsonValueKind.String)
+                if (cmp.TryGetProperty("outputFiles", out var cmpFiles)
+                    && cmpFiles.ValueKind == JsonValueKind.Object)
                 {
-                    model.TrajectoryVideoUrl = tr.GetString();
-                }
-
-                if (files.TryGetProperty("rawJsonUrl", out var raw) && raw.ValueKind == JsonValueKind.String)
-                {
-                    model.RawJsonUrl = raw.GetString();
+                    model.SkeletonLiteVideoUrl = GetStringProp(cmpFiles, "skeletonLiteVideoUrl")
+                        ?? model.SkeletonLiteVideoUrl;
+                    model.TrajectoryLiteVideoUrl = GetStringProp(cmpFiles, "trajectoryLiteVideoUrl")
+                        ?? model.TrajectoryLiteVideoUrl;
+                    model.SkeletonFullVideoUrl = GetStringProp(cmpFiles, "skeletonFullVideoUrl")
+                        ?? model.SkeletonFullVideoUrl;
+                    model.TrajectoryFullVideoUrl = GetStringProp(cmpFiles, "trajectoryFullVideoUrl")
+                        ?? model.TrajectoryFullVideoUrl;
+                    model.RawLiteJsonUrl = GetStringProp(cmpFiles, "rawLiteJsonUrl")
+                        ?? model.RawLiteJsonUrl;
+                    model.RawFullJsonUrl = GetStringProp(cmpFiles, "rawFullJsonUrl")
+                        ?? model.RawFullJsonUrl;
                 }
             }
 
@@ -168,5 +225,15 @@ public class PoseApiClient
         {
             // Keep raw JSON only when parse fails.
         }
+    }
+
+    private static string? GetStringProp(JsonElement obj, string name)
+    {
+        if (obj.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String)
+        {
+            return p.GetString();
+        }
+
+        return null;
     }
 }

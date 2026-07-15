@@ -2,6 +2,12 @@
 
 @{
     ViewData["Title"] = "動作分析";
+    var pendingFull = string.Equals(Model.ModelComparisonStatus, "pending_full", StringComparison.OrdinalIgnoreCase);
+    var compareCompleted = string.Equals(Model.ModelComparisonStatus, "completed", StringComparison.OrdinalIgnoreCase);
+    var showLite = !string.IsNullOrWhiteSpace(Model.SkeletonLiteVideoUrl)
+        || !string.IsNullOrWhiteSpace(Model.TrajectoryLiteVideoUrl)
+        || !string.IsNullOrWhiteSpace(Model.SkeletonVideoUrl)
+        || !string.IsNullOrWhiteSpace(Model.TrajectoryVideoUrl);
 }
 
 <h2>動作姿態節點分析</h2>
@@ -11,7 +17,8 @@
       asp-action="Index"
       method="post"
       enctype="multipart/form-data"
-      class="mt-3">
+      class="mt-3"
+      id="analyzeForm">
 
     <div class="mb-3">
         <label class="form-label" asp-for="VideoFile"></label>
@@ -92,7 +99,13 @@
         </div>
     </div>
 
-    <button type="submit" class="btn btn-primary">
+    <div class="mb-3 form-check">
+        <input asp-for="CompareWithFull" class="form-check-input" />
+        <label class="form-check-label" asp-for="CompareWithFull"></label>
+        <div class="form-text">先顯示 Lite 結果，再於背景跑 Full 並計算差異百分比。</div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="analyzeSubmitBtn">
         開始分析
     </button>
 </form>
@@ -119,51 +132,134 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.AnalysisId))
 {
-    <p class="mt-3 text-muted">分析編號：@Model.AnalysisId</p>
+    <p class="mt-3 text-muted">分析編號：<span id="analysisIdText">@Model.AnalysisId</span></p>
 }
 
-@if (!string.IsNullOrWhiteSpace(Model.SkeletonVideoUrl) || !string.IsNullOrWhiteSpace(Model.TrajectoryVideoUrl))
+<div id="compareBanner" class="mt-3" style="@(pendingFull || compareCompleted ? "" : "display:none;")">
+    @if (pendingFull)
+    {
+        <div class="alert alert-info mb-0" id="comparePendingAlert">
+            Lite 分析已完成。正在以 Full 模型進行對照分析，請稍候…
+        </div>
+    }
+    <div class="alert alert-secondary mb-0" id="compareResultAlert" style="@(compareCompleted ? "" : "display:none;")">
+        <strong>Lite 相對 Full 差異：</strong>
+        <span id="overallDiffPercentText">
+            @(Model.OverallDiffPercent.HasValue ? $"{Model.OverallDiffPercent.Value:0.##}%" : "—")
+        </span>
+        <div class="small text-muted mt-1" id="compareDescText">
+            @(Model.ModelComparisonDescription ?? "以 Full 為基準：可比關節之平均 (|Lite−Full| / Full身體尺度) × 100%。")
+        </div>
+    </div>
+</div>
+
+@if (showLite)
 {
-    <div class="row mt-4">
-        @if (!string.IsNullOrWhiteSpace(Model.SkeletonVideoUrl))
-        {
-            <div class="col-md-6 mb-3">
-                <h4>骨架標註影片</h4>
-                @if (Model.BrowserPlayableVideo)
-                {
-                    <video controls playsinline style="max-width: 100%; background: #000;">
-                        <source src="@Model.SkeletonVideoUrl" type="video/mp4" />
-                    </video>
-                }
-                <div><a href="@Model.SkeletonVideoUrl" target="_blank" rel="noopener">開啟／下載</a></div>
-            </div>
-        }
-        @if (!string.IsNullOrWhiteSpace(Model.TrajectoryVideoUrl))
-        {
-            <div class="col-md-6 mb-3">
-                <h4>關節軌跡影片</h4>
-                @if (Model.BrowserPlayableVideo)
-                {
-                    <video controls playsinline style="max-width: 100%; background: #000;">
-                        <source src="@Model.TrajectoryVideoUrl" type="video/mp4" />
-                    </video>
-                }
-                <div><a href="@Model.TrajectoryVideoUrl" target="_blank" rel="noopener">開啟／下載</a></div>
-            </div>
-        }
+    <div class="mt-4">
+        <h3>Lite 模型</h3>
+        <div class="row">
+            @{
+                var liteSk = Model.SkeletonLiteVideoUrl ?? Model.SkeletonVideoUrl;
+                var liteTr = Model.TrajectoryLiteVideoUrl ?? Model.TrajectoryVideoUrl;
+            }
+            @if (!string.IsNullOrWhiteSpace(liteSk))
+            {
+                <div class="col-md-6 mb-3">
+                    <h5>骨架標註影片（含關節角度）</h5>
+                    @if (Model.BrowserPlayableVideo)
+                    {
+                        <video controls playsinline style="max-width: 100%; background: #000;">
+                            <source src="@liteSk" type="video/mp4" />
+                        </video>
+                    }
+                    <div><a href="@liteSk" target="_blank" rel="noopener">開啟／下載</a></div>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(liteTr))
+            {
+                <div class="col-md-6 mb-3">
+                    <h5>關節軌跡影片</h5>
+                    @if (Model.BrowserPlayableVideo)
+                    {
+                        <video controls playsinline style="max-width: 100%; background: #000;">
+                            <source src="@liteTr" type="video/mp4" />
+                        </video>
+                    }
+                    <div><a href="@liteTr" target="_blank" rel="noopener">開啟／下載</a></div>
+                </div>
+            }
+        </div>
     </div>
 }
 
-@if (!string.IsNullOrWhiteSpace(Model.RawJsonUrl))
+<div id="fullResultSection" class="mt-4" style="@(compareCompleted ? "" : "display:none;")">
+    <h3>Full 模型（對照）</h3>
+    <div class="row">
+        <div class="col-md-6 mb-3" id="fullSkeletonBlock" style="@(!string.IsNullOrWhiteSpace(Model.SkeletonFullVideoUrl) ? "" : "display:none;")">
+            <h5>骨架標註影片（含關節角度）</h5>
+            <div id="fullSkeletonPlayer">
+                @if (Model.BrowserPlayableVideo && !string.IsNullOrWhiteSpace(Model.SkeletonFullVideoUrl))
+                {
+                    <video controls playsinline style="max-width: 100%; background: #000;">
+                        <source src="@Model.SkeletonFullVideoUrl" type="video/mp4" />
+                    </video>
+                }
+            </div>
+            <div><a id="fullSkeletonLink" href="@(Model.SkeletonFullVideoUrl ?? "#")" target="_blank" rel="noopener">開啟／下載</a></div>
+        </div>
+        <div class="col-md-6 mb-3" id="fullTrajectoryBlock" style="@(!string.IsNullOrWhiteSpace(Model.TrajectoryFullVideoUrl) ? "" : "display:none;")">
+            <h5>關節軌跡影片</h5>
+            <div id="fullTrajectoryPlayer">
+                @if (Model.BrowserPlayableVideo && !string.IsNullOrWhiteSpace(Model.TrajectoryFullVideoUrl))
+                {
+                    <video controls playsinline style="max-width: 100%; background: #000;">
+                        <source src="@Model.TrajectoryFullVideoUrl" type="video/mp4" />
+                    </video>
+                }
+            </div>
+            <div><a id="fullTrajectoryLink" href="@(Model.TrajectoryFullVideoUrl ?? "#")" target="_blank" rel="noopener">開啟／下載</a></div>
+        </div>
+    </div>
+</div>
+
+@{
+    var liteJsonUrl = Model.RawLiteJsonUrl ?? Model.RawJsonUrl;
+    var fullJsonUrl = Model.RawFullJsonUrl;
+}
+@if (!string.IsNullOrWhiteSpace(liteJsonUrl) || !string.IsNullOrWhiteSpace(fullJsonUrl))
 {
-    <p class="mt-2"><a href="@Model.RawJsonUrl" target="_blank" rel="noopener">下載完整 JSON</a></p>
+    <div class="mt-3 d-flex flex-wrap gap-2" id="jsonDownloadButtons">
+        @if (!string.IsNullOrWhiteSpace(liteJsonUrl))
+        {
+            <a id="rawLiteJsonLink"
+               class="btn btn-outline-secondary btn-sm"
+               href="@liteJsonUrl"
+               target="_blank"
+               rel="noopener">下載 Lite JSON</a>
+        }
+        else
+        {
+            <a id="rawLiteJsonLink"
+               class="btn btn-outline-secondary btn-sm"
+               href="#"
+               target="_blank"
+               rel="noopener"
+               style="display:none;">下載 Lite JSON</a>
+        }
+        <a id="rawFullJsonLink"
+           class="btn btn-outline-secondary btn-sm"
+           href="@(fullJsonUrl ?? "#")"
+           target="_blank"
+           rel="noopener"
+           style="@(string.IsNullOrWhiteSpace(fullJsonUrl) ? "display:none;" : "")">下載 Full JSON</a>
+    </div>
 }
 
 @if (!string.IsNullOrWhiteSpace(Model.AnalysisJson))
 {
     <details class="mt-4">
         <summary><h3 style="display:inline;">分析結果 JSON</h3></summary>
-        <pre style="white-space: pre-wrap; background: #f5f5f5; padding: 16px; max-height: 600px; overflow: auto;">
+        <pre id="analysisJsonPre" style="white-space: pre-wrap; background: #f5f5f5; padding: 16px; max-height: 600px; overflow: auto;">
 @Model.AnalysisJson
         </pre>
     </details>
@@ -182,6 +278,129 @@
     }
     select.addEventListener('change', sync);
     sync();
+
+    var pendingFull = @(pendingFull ? "true" : "false");
+    var analysisId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AnalysisId ?? ""));
+    var browserPlayable = @(Model.BrowserPlayableVideo ? "true" : "false");
+
+    if (!pendingFull || !analysisId) {
+        return;
+    }
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '@Url.Action("CompareFull", "Pose")';
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'analysisId';
+    input.value = analysisId;
+    form.appendChild(input);
+
+    var token = document.querySelector('input[name="__RequestVerificationToken"]');
+    // antiforgery may be absent; endpoint accepts form post without token when not configured
+
+    fetch(form.action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'analysisId=' + encodeURIComponent(analysisId)
+    })
+    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+    .then(function (payload) {
+        var pendingAlert = document.getElementById('comparePendingAlert');
+        if (pendingAlert) {
+            pendingAlert.style.display = 'none';
+        }
+
+        if (!payload.ok || payload.data.success === false) {
+            var banner = document.getElementById('compareBanner');
+            if (banner) {
+                banner.innerHTML = '<div class="alert alert-danger">Full 對照分析失敗：'
+                    + ((payload.data && payload.data.message) ? payload.data.message : '未知錯誤')
+                    + '</div>';
+                banner.style.display = '';
+            }
+            return;
+        }
+
+        var data = payload.data;
+        var cmp = data.modelComparison || {};
+        var summary = cmp.summary || {};
+        var files = data.outputFiles || {};
+        var cmpFiles = cmp.outputFiles || {};
+
+        var pct = summary.overallDiffPercent;
+        var pctText = document.getElementById('overallDiffPercentText');
+        if (pctText) {
+            pctText.textContent = (pct === null || pct === undefined) ? '—' : (Number(pct).toFixed(2) + '%');
+        }
+        var desc = document.getElementById('compareDescText');
+        if (desc && cmp.metricDescription) {
+            desc.textContent = cmp.metricDescription;
+        }
+        var resultAlert = document.getElementById('compareResultAlert');
+        if (resultAlert) {
+            resultAlert.style.display = '';
+        }
+        var banner = document.getElementById('compareBanner');
+        if (banner) {
+            banner.style.display = '';
+        }
+
+        var skUrl = cmpFiles.skeletonFullVideoUrl || files.skeletonFullVideoUrl;
+        var trUrl = cmpFiles.trajectoryFullVideoUrl || files.trajectoryFullVideoUrl;
+
+        var fullSection = document.getElementById('fullResultSection');
+        if (fullSection) {
+            fullSection.style.display = '';
+        }
+
+        function fillVideo(blockId, playerId, linkId, url) {
+            if (!url) return;
+            var block = document.getElementById(blockId);
+            var link = document.getElementById(linkId);
+            var player = document.getElementById(playerId);
+            if (block) block.style.display = '';
+            if (link) {
+                link.href = url;
+                link.style.display = '';
+            }
+            if (player && browserPlayable) {
+                player.innerHTML = '<video controls playsinline style="max-width: 100%; background: #000;">'
+                    + '<source src="' + url + '" type="video/mp4" /></video>';
+            }
+        }
+
+        fillVideo('fullSkeletonBlock', 'fullSkeletonPlayer', 'fullSkeletonLink', skUrl);
+        fillVideo('fullTrajectoryBlock', 'fullTrajectoryPlayer', 'fullTrajectoryLink', trUrl);
+
+        var liteJson = files.rawLiteJsonUrl || cmpFiles.rawLiteJsonUrl || files.rawJsonUrl;
+        var fullJson = files.rawFullJsonUrl || cmpFiles.rawFullJsonUrl;
+        var liteLink = document.getElementById('rawLiteJsonLink');
+        var fullLink = document.getElementById('rawFullJsonLink');
+        var jsonButtons = document.getElementById('jsonDownloadButtons');
+        if (jsonButtons && (liteJson || fullJson)) {
+            jsonButtons.style.display = '';
+        }
+        if (liteLink && liteJson) {
+            liteLink.href = liteJson;
+            liteLink.style.display = '';
+        }
+        if (fullLink && fullJson) {
+            fullLink.href = fullJson;
+            fullLink.style.display = '';
+        }
+        var pre = document.getElementById('analysisJsonPre');
+        if (pre) {
+            pre.textContent = JSON.stringify(data, null, 2);
+        }
+    })
+    .catch(function (err) {
+        var banner = document.getElementById('compareBanner');
+        if (banner) {
+            banner.innerHTML = '<div class="alert alert-danger">Full 對照分析失敗：' + err + '</div>';
+            banner.style.display = '';
+        }
+    });
 })();
 </script>
 }

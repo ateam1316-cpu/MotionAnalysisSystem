@@ -1,4 +1,4 @@
-"""Assemble schemaVersion 1.0 analysis result and data-quality warnings."""
+"""Assemble schemaVersion 1.1 analysis result and data-quality warnings."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class AnalysisResultBuilder:
         message: Optional[str] = None,
     ) -> dict:
         result: Dict[str, Any] = {
-            "schemaVersion": "1.0",
+            "schemaVersion": "1.1",
             "analysisId": analysis_id,
             "success": success,
             "movement": movement,

@@ -10,7 +10,7 @@ var poseApiBaseUrl = builder.Configuration["PoseApi:BaseUrl"] ?? "http://127.0.0
 builder.Services.AddHttpClient<PoseApiClient>(client =>
 {
     client.BaseAddress = new Uri(poseApiBaseUrl);
-    client.Timeout = TimeSpan.FromMinutes(10);
+    client.Timeout = TimeSpan.FromMinutes(30);
 });
 
 builder.WebHost.ConfigureKestrel(options =>

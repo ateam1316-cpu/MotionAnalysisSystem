@@ -55,7 +55,8 @@ public class PoseController : Controller
                 model.FrameInterval,
                 model.GenerateSkeletonVideo,
                 model.GenerateTrajectoryVideo,
-                model.BrowserPlayableVideo);
+                model.BrowserPlayableVideo,
+                model.CompareWithFull);
 
             PoseApiClient.PopulateResultFields(model, resultJson);
         }
@@ -65,6 +66,28 @@ public class PoseController : Controller
         }
 
         return View(model);
+    }
+
+    /// <summary>
+    /// Continue Full-model analysis after Lite results are already shown.
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> CompareFull([FromForm] string analysisId)
+    {
+        if (string.IsNullOrWhiteSpace(analysisId))
+        {
+            return BadRequest(new { success = false, message = "缺少 analysisId。" });
+        }
+
+        try
+        {
+            var resultJson = await _poseApiClient.CompareFullAsync(analysisId.Trim());
+            return Content(resultJson, "application/json");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
     }
 
     private async Task FillMovementsAsync(VideoAnalyzeViewModel model)

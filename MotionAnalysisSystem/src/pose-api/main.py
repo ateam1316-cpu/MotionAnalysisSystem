@@ -33,7 +33,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "pose-api",
-        "schemaVersion": "1.0",
+        "schemaVersion": "1.1",
     }
 
 
@@ -41,7 +41,7 @@ def health_check():
 def list_movements():
     """List supported sport/movement definitions loaded from configs/movements."""
     return {
-        "schemaVersion": "1.0",
+        "schemaVersion": "1.1",
         "movements": definition_provider.list_supported(),
     }
 
@@ -57,10 +57,16 @@ async def analyze_video(
     generateSkeletonVideo: bool = Form(True),
     generateTrajectoryVideo: bool = Form(True),
     browserPlayableVideo: bool = Form(False),
+    modelVariant: str = Form("lite"),
+    compareWithFull: bool = Form(False),
 ):
     """
     Receive a video plus movement metadata, run objective pose measurement,
-    return schemaVersion 1.0 JSON (no quality scoring).
+    return schemaVersion 1.1 JSON (no quality scoring).
+
+    When compareWithFull=true: runs Lite first, keeps source video, returns
+    modelComparison.status=pending_full. Client should then call
+    POST /analyze/{analysisId}/compare-full.
     """
     temp_path = None
 
@@ -81,6 +87,8 @@ async def analyze_video(
             generate_skeleton_video=generateSkeletonVideo,
             generate_trajectory_video=generateTrajectoryVideo,
             browser_playable_video=browserPlayableVideo,
+            model_variant=(modelVariant or "lite").strip().lower(),
+            compare_with_full=compareWithFull,
         )
 
         status = 200 if result.get("success", False) else 200
@@ -90,7 +98,7 @@ async def analyze_video(
         return JSONResponse(
             status_code=400,
             content={
-                "schemaVersion": "1.0",
+                "schemaVersion": "1.1",
                 "success": False,
                 "message": str(ex),
                 "warnings": [],
@@ -100,7 +108,7 @@ async def analyze_video(
         return JSONResponse(
             status_code=500,
             content={
-                "schemaVersion": "1.0",
+                "schemaVersion": "1.1",
                 "success": False,
                 "message": str(ex),
                 "warnings": [],
@@ -108,7 +116,41 @@ async def analyze_video(
         )
     finally:
         if temp_path and os.path.exists(temp_path):
+            # When compare keeps a copy under storage/, temp upload can be removed.
             os.remove(temp_path)
+
+
+@app.post("/analyze/{analysis_id}/compare-full")
+async def compare_full(analysis_id: str):
+    """Run Full model against a prior Lite compare session and return merged result."""
+    if not UUID_RE.match(analysis_id):
+        raise HTTPException(status_code=400, detail="Invalid analysisId.")
+
+    try:
+        result = pipeline.compare_full(analysis_id)
+        return JSONResponse(content=result, status_code=200)
+    except FileNotFoundError as ex:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "schemaVersion": "1.1",
+                "analysisId": analysis_id,
+                "success": False,
+                "message": str(ex),
+                "warnings": [],
+            },
+        )
+    except Exception as ex:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "schemaVersion": "1.1",
+                "analysisId": analysis_id,
+                "success": False,
+                "message": str(ex),
+                "warnings": [],
+            },
+        )
 
 
 @app.get("/files/{analysis_id}/{filename}")

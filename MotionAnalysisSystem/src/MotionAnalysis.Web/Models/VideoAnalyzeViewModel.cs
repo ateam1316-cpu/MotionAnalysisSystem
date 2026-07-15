@@ -40,6 +40,9 @@ public class VideoAnalyzeViewModel
     [Display(Name = "瀏覽器可直接播放（較慢）")]
     public bool BrowserPlayableVideo { get; set; } = false;
 
+    [Display(Name = "與 Full 模型對照")]
+    public bool CompareWithFull { get; set; } = true;
+
     public List<MovementOption> AvailableMovements { get; set; } = new();
 
     public string? AnalysisJson { get; set; }
@@ -50,7 +53,26 @@ public class VideoAnalyzeViewModel
 
     public string? TrajectoryVideoUrl { get; set; }
 
+    public string? SkeletonLiteVideoUrl { get; set; }
+
+    public string? TrajectoryLiteVideoUrl { get; set; }
+
+    public string? SkeletonFullVideoUrl { get; set; }
+
+    public string? TrajectoryFullVideoUrl { get; set; }
+
     public string? RawJsonUrl { get; set; }
+
+    public string? RawLiteJsonUrl { get; set; }
+
+    public string? RawFullJsonUrl { get; set; }
+
+    /// <summary>pending_full | completed | null</summary>
+    public string? ModelComparisonStatus { get; set; }
+
+    public double? OverallDiffPercent { get; set; }
+
+    public string? ModelComparisonDescription { get; set; }
 
     public List<string> WarningMessages { get; set; } = new();
 

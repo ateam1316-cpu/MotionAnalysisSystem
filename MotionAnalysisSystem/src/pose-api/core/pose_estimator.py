@@ -17,43 +17,52 @@ PoseLandmarker = mp.tasks.vision.PoseLandmarker
 PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-SOURCE_MODEL_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    "models",
-    "pose_landmarker_lite.task",
-)
+MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
+
+MODEL_FILES = {
+    "lite": "pose_landmarker_lite.task",
+    "full": "pose_landmarker_full.task",
+}
 
 
-def get_model_path() -> str:
+def get_model_path(model_variant: str = "lite") -> str:
     """
     MediaPipe on Windows cannot read non-ASCII paths.
     Copy the model into the system temp directory before loading.
     """
-    if not os.path.exists(SOURCE_MODEL_PATH):
-        raise FileNotFoundError(f"Pose model not found: {SOURCE_MODEL_PATH}")
+    variant = (model_variant or "lite").strip().lower()
+    if variant not in MODEL_FILES:
+        raise ValueError(f"Unsupported model variant: {model_variant}")
+
+    source_model_path = os.path.join(MODELS_DIR, MODEL_FILES[variant])
+    if not os.path.exists(source_model_path):
+        raise FileNotFoundError(f"Pose model not found: {source_model_path}")
 
     temp_model_path = os.path.join(
         tempfile.gettempdir(),
-        "motion_analysis_pose_landmarker_lite.task",
+        f"motion_analysis_pose_landmarker_{variant}.task",
     )
 
     if (
         not os.path.exists(temp_model_path)
-        or os.path.getmtime(SOURCE_MODEL_PATH) > os.path.getmtime(temp_model_path)
+        or os.path.getmtime(source_model_path) > os.path.getmtime(temp_model_path)
     ):
-        shutil.copy2(SOURCE_MODEL_PATH, temp_model_path)
+        shutil.copy2(source_model_path, temp_model_path)
 
     return temp_model_path
 
 
 class PoseEstimator:
-    def __init__(self, num_poses: int = 1):
+    def __init__(self, num_poses: int = 1, model_variant: str = "lite"):
         self.num_poses = num_poses
+        self.model_variant = (model_variant or "lite").strip().lower()
         self._landmarker: Optional[Any] = None
 
     def __enter__(self) -> "PoseEstimator":
         options = PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=get_model_path()),
+            base_options=BaseOptions(
+                model_asset_path=get_model_path(self.model_variant)
+            ),
             running_mode=VisionRunningMode.VIDEO,
             num_poses=self.num_poses,
             min_pose_detection_confidence=0.5,

@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from core.render_thresholds import is_drawable
 from render.browser_video_writer import create_video_writer
 
 COLORS = [
@@ -66,6 +67,8 @@ class TrajectoryRenderer:
                         for key in trajectory_keys:
                             pt = traj.get(key)
                             if not pt or pt.get("x") is None or pt.get("y") is None:
+                                continue
+                            if not is_drawable(pt):
                                 continue
                             px = int(round(pt["x"] * width))
                             py = int(round(pt["y"] * height))

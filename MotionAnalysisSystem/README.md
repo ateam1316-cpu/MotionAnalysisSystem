@@ -61,6 +61,6 @@ Pose API 位址可於 `appsettings.json` 的 `PoseApi:BaseUrl` 設定。
 
 ## 文件
 
-- [運動動作分析功能說明](docs/motion-analysis-features.md)
+- [運動動作分析功能說明](docs/現階段動作分析功能.md)
 - [API Contract](docs/api-contract.md)
 - [Third-Party Licenses](docs/THIRD_PARTY_LICENSES.md)
