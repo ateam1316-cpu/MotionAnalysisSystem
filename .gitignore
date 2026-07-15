@@ -1,3 +1,16 @@
 bin
 obj
 *.user
+
+# Python
+**/__pycache__/
+*.pyc
+**/.venv/
+
+# Pose API runtime outputs (keep directory placeholders)
+MotionAnalysisSystem/src/pose-api/storage/*
+!MotionAnalysisSystem/src/pose-api/storage/.gitkeep
+MotionAnalysisSystem/src/pose-api/temp/*
+!MotionAnalysisSystem/src/pose-api/temp/.gitkeep
+
+MotionAnalysisSystem/artifacts/

@@ -1,15 +1,95 @@
 @model MotionAnalysis.Web.Models.VideoAnalyzeViewModel
 
-<h2>影片姿態節點分析</h2>
+@{
+    ViewData["Title"] = "動作分析";
+}
+
+<h2>動作姿態節點分析</h2>
+<p class="text-muted">輸出關節座標、角度與軌跡等客觀量測資料，不評價動作品質。</p>
 
 <form asp-controller="Pose"
       asp-action="Index"
       method="post"
-      enctype="multipart/form-data">
+      enctype="multipart/form-data"
+      class="mt-3">
 
     <div class="mb-3">
-        <label class="form-label">上傳影片</label>
+        <label class="form-label" asp-for="VideoFile"></label>
         <input asp-for="VideoFile" type="file" class="form-control" accept="video/*" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">動作</label>
+            <select id="movementSelect" class="form-select" name="movementSelect">
+                @foreach (var m in Model.AvailableMovements)
+                {
+                    var selected = Model.SportType == m.SportType && Model.MovementType == m.MovementType;
+                    if (selected)
+                    {
+                        <option value="@($"{m.SportType}|{m.MovementType}")" selected>@m.Label</option>
+                    }
+                    else
+                    {
+                        <option value="@($"{m.SportType}|{m.MovementType}")">@m.Label</option>
+                    }
+                }
+            </select>
+            <input type="hidden" asp-for="SportType" id="SportType" />
+            <input type="hidden" asp-for="MovementType" id="MovementType" />
+        </div>
+        <div class="col-md-3 mb-3">
+            <label class="form-label" asp-for="CameraView"></label>
+            <select asp-for="CameraView" class="form-select">
+                @foreach (var v in VideoAnalyzeViewModel.CameraViews)
+                {
+                    if (Model.CameraView == v.Value)
+                    {
+                        <option value="@v.Value" selected>@v.Label</option>
+                    }
+                    else
+                    {
+                        <option value="@v.Value">@v.Label</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-md-3 mb-3">
+            <label class="form-label" asp-for="DominantSide"></label>
+            <select asp-for="DominantSide" class="form-select">
+                @if (Model.DominantSide == "left")
+                {
+                    <option value="right">右側</option>
+                    <option value="left" selected>左側</option>
+                }
+                else
+                {
+                    <option value="right" selected>右側</option>
+                    <option value="left">左側</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <label class="form-label" asp-for="FrameInterval"></label>
+            <input asp-for="FrameInterval" type="number" min="1" max="30" class="form-control" />
+            <div class="form-text">每 N 幀分析一次（1 = 全幀）</div>
+        </div>
+        <div class="col-md-3 mb-3 form-check align-self-center">
+            <input asp-for="GenerateSkeletonVideo" class="form-check-input" />
+            <label class="form-check-label" asp-for="GenerateSkeletonVideo"></label>
+        </div>
+        <div class="col-md-3 mb-3 form-check align-self-center">
+            <input asp-for="GenerateTrajectoryVideo" class="form-check-input" />
+            <label class="form-check-label" asp-for="GenerateTrajectoryVideo"></label>
+        </div>
+        <div class="col-md-3 mb-3 form-check align-self-center">
+            <input asp-for="BrowserPlayableVideo" class="form-check-input" />
+            <label class="form-check-label" asp-for="BrowserPlayableVideo"></label>
+            <div class="form-text">未勾選僅提供下載連結（較快）</div>
+        </div>
     </div>
 
     <button type="submit" class="btn btn-primary">
@@ -24,11 +104,84 @@
     </div>
 }
 
+@if (Model.WarningMessages.Count > 0)
+{
+    <div class="alert alert-warning mt-3">
+        <strong>資料品質警告</strong>
+        <ul class="mb-0 mt-2">
+            @foreach (var w in Model.WarningMessages)
+            {
+                <li>@w</li>
+            }
+        </ul>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.AnalysisId))
+{
+    <p class="mt-3 text-muted">分析編號：@Model.AnalysisId</p>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.SkeletonVideoUrl) || !string.IsNullOrWhiteSpace(Model.TrajectoryVideoUrl))
+{
+    <div class="row mt-4">
+        @if (!string.IsNullOrWhiteSpace(Model.SkeletonVideoUrl))
+        {
+            <div class="col-md-6 mb-3">
+                <h4>骨架標註影片</h4>
+                @if (Model.BrowserPlayableVideo)
+                {
+                    <video controls playsinline style="max-width: 100%; background: #000;">
+                        <source src="@Model.SkeletonVideoUrl" type="video/mp4" />
+                    </video>
+                }
+                <div><a href="@Model.SkeletonVideoUrl" target="_blank" rel="noopener">開啟／下載</a></div>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.TrajectoryVideoUrl))
+        {
+            <div class="col-md-6 mb-3">
+                <h4>關節軌跡影片</h4>
+                @if (Model.BrowserPlayableVideo)
+                {
+                    <video controls playsinline style="max-width: 100%; background: #000;">
+                        <source src="@Model.TrajectoryVideoUrl" type="video/mp4" />
+                    </video>
+                }
+                <div><a href="@Model.TrajectoryVideoUrl" target="_blank" rel="noopener">開啟／下載</a></div>
+            </div>
+        }
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.RawJsonUrl))
+{
+    <p class="mt-2"><a href="@Model.RawJsonUrl" target="_blank" rel="noopener">下載完整 JSON</a></p>
+}
+
 @if (!string.IsNullOrWhiteSpace(Model.AnalysisJson))
 {
-    <h3 class="mt-4">分析結果 JSON</h3>
-
-    <pre style="white-space: pre-wrap; background: #f5f5f5; padding: 16px; max-height: 600px; overflow: auto;">
+    <details class="mt-4">
+        <summary><h3 style="display:inline;">分析結果 JSON</h3></summary>
+        <pre style="white-space: pre-wrap; background: #f5f5f5; padding: 16px; max-height: 600px; overflow: auto;">
 @Model.AnalysisJson
-    </pre>
+        </pre>
+    </details>
+}
+
+@section Scripts {
+<script>
+(function () {
+    var select = document.getElementById('movementSelect');
+    var sport = document.getElementById('SportType');
+    var movement = document.getElementById('MovementType');
+    function sync() {
+        var parts = (select.value || '|').split('|');
+        sport.value = parts[0] || 'fitness';
+        movement.value = parts[1] || 'squat';
+    }
+    select.addEventListener('change', sync);
+    sync();
+})();
+</script>
 }

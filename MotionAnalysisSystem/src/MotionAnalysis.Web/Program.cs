@@ -5,10 +5,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
+var poseApiBaseUrl = builder.Configuration["PoseApi:BaseUrl"] ?? "http://127.0.0.1:8000";
+
 builder.Services.AddHttpClient<PoseApiClient>(client =>
 {
-    client.BaseAddress = new Uri("http://127.0.0.1:8000");
+    client.BaseAddress = new Uri(poseApiBaseUrl);
     client.Timeout = TimeSpan.FromMinutes(10);
+});
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 524_288_000;
 });
 
 var app = builder.Build();

@@ -1,0 +1,31 @@
+{
+  "sportType": "fitness",
+  "movementType": "deadlift",
+  "primaryLandmarks": [
+    "LEFT_SHOULDER",
+    "RIGHT_SHOULDER",
+    "LEFT_HIP",
+    "RIGHT_HIP",
+    "LEFT_KNEE",
+    "RIGHT_KNEE",
+    "LEFT_ANKLE",
+    "RIGHT_ANKLE",
+    "LEFT_WRIST",
+    "RIGHT_WRIST"
+  ],
+  "anglesToOutput": [
+    "leftHipAngleDeg",
+    "rightHipAngleDeg",
+    "leftKneeAngleDeg",
+    "rightKneeAngleDeg",
+    "trunkLeanAngleDeg"
+  ],
+  "trajectoryLandmarks": [
+    "shoulderCenter",
+    "hipCenter",
+    "leftWrist",
+    "rightWrist"
+  ],
+  "suggestedCameraViews": ["front", "side_left", "side_right"],
+  "suggestedMinFps": 30
+}

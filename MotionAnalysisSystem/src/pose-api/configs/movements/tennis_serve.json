@@ -1,0 +1,35 @@
+{
+  "sportType": "tennis",
+  "movementType": "serve",
+  "primaryLandmarks": [
+    "NOSE",
+    "LEFT_SHOULDER",
+    "RIGHT_SHOULDER",
+    "LEFT_ELBOW",
+    "RIGHT_ELBOW",
+    "LEFT_WRIST",
+    "RIGHT_WRIST",
+    "LEFT_HIP",
+    "RIGHT_HIP",
+    "LEFT_KNEE",
+    "RIGHT_KNEE",
+    "LEFT_ANKLE",
+    "RIGHT_ANKLE"
+  ],
+  "anglesToOutput": [
+    "servingShoulderAngleDeg",
+    "servingElbowAngleDeg",
+    "servingWristHeightNormalized",
+    "leftKneeAngleDeg",
+    "rightKneeAngleDeg",
+    "trunkLeanAngleDeg"
+  ],
+  "trajectoryLandmarks": [
+    "servingWrist",
+    "servingElbow",
+    "nonServingWrist",
+    "hipCenter"
+  ],
+  "suggestedCameraViews": ["side_right", "side_left", "front"],
+  "suggestedMinFps": 30
+}

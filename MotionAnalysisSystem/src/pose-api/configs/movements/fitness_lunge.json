@@ -1,0 +1,33 @@
+{
+  "sportType": "fitness",
+  "movementType": "lunge",
+  "primaryLandmarks": [
+    "LEFT_HIP",
+    "RIGHT_HIP",
+    "LEFT_KNEE",
+    "RIGHT_KNEE",
+    "LEFT_ANKLE",
+    "RIGHT_ANKLE",
+    "LEFT_HEEL",
+    "RIGHT_HEEL",
+    "LEFT_FOOT_INDEX",
+    "RIGHT_FOOT_INDEX"
+  ],
+  "anglesToOutput": [
+    "leftKneeAngleDeg",
+    "rightKneeAngleDeg",
+    "leftHipAngleDeg",
+    "rightHipAngleDeg",
+    "pelvisTiltAngleDeg",
+    "trunkLeanAngleDeg"
+  ],
+  "trajectoryLandmarks": [
+    "hipCenter",
+    "leftKnee",
+    "rightKnee",
+    "leftAnkle",
+    "rightAnkle"
+  ],
+  "suggestedCameraViews": ["front", "side_left", "side_right"],
+  "suggestedMinFps": 30
+}

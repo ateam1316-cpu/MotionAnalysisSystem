@@ -1,0 +1,40 @@
+{
+  "sportType": "badminton",
+  "movementType": "smash",
+  "primaryLandmarks": [
+    "LEFT_SHOULDER",
+    "RIGHT_SHOULDER",
+    "LEFT_ELBOW",
+    "RIGHT_ELBOW",
+    "LEFT_WRIST",
+    "RIGHT_WRIST",
+    "LEFT_HIP",
+    "RIGHT_HIP",
+    "LEFT_KNEE",
+    "RIGHT_KNEE",
+    "LEFT_ANKLE",
+    "RIGHT_ANKLE"
+  ],
+  "anglesToOutput": [
+    "racketSideShoulderAngleDeg",
+    "racketSideElbowAngleDeg",
+    "racketSideWristPosition",
+    "shoulderTiltAngleDeg",
+    "pelvisTiltAngleDeg",
+    "trunkLeanAngleDeg"
+  ],
+  "trajectoryLandmarks": [
+    "racketSideWrist",
+    "racketSideElbow",
+    "racketSideShoulder",
+    "hipCenter"
+  ],
+  "suggestedCameraViews": [
+    "rear_diagonal_left",
+    "rear_diagonal_right",
+    "side_right",
+    "side_left",
+    "rear"
+  ],
+  "suggestedMinFps": 30
+}

@@ -1,0 +1,38 @@
+{
+  "sportType": "tennis",
+  "movementType": "backhand",
+  "primaryLandmarks": [
+    "LEFT_SHOULDER",
+    "RIGHT_SHOULDER",
+    "LEFT_ELBOW",
+    "RIGHT_ELBOW",
+    "LEFT_WRIST",
+    "RIGHT_WRIST",
+    "LEFT_HIP",
+    "RIGHT_HIP",
+    "LEFT_KNEE",
+    "RIGHT_KNEE",
+    "LEFT_ANKLE",
+    "RIGHT_ANKLE"
+  ],
+  "anglesToOutput": [
+    "dominantShoulderAngleDeg",
+    "dominantElbowAngleDeg",
+    "dominantWristPosition",
+    "shoulderCenterPosition",
+    "hipCenterPosition"
+  ],
+  "trajectoryLandmarks": [
+    "dominantWrist",
+    "dominantElbow",
+    "shoulderCenter",
+    "hipCenter"
+  ],
+  "suggestedCameraViews": [
+    "side_right",
+    "side_left",
+    "front_diagonal_right",
+    "front_diagonal_left"
+  ],
+  "suggestedMinFps": 30
+}

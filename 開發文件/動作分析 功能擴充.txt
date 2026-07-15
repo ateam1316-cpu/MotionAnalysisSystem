@@ -1,0 +1,761 @@
+# 多運動影片關節節點分析系統規格
+
+## 1. 系統目標
+
+系統只執行以下功能：
+
+1. 接收不同運動類型的影片。
+2. 接收不同拍攝角度的影片。
+3. 擷取人體姿態節點。
+4. 輸出關節座標、可見度及基礎角度。
+5. 輸出骨架標註影片。
+6. 視需要輸出關節移動軌跡。
+7. 不評價動作品質好壞。
+8. 不輸出正確、錯誤、通過、失敗或總分。
+
+---
+
+## 2. 系統處理流程
+
+```text
+影片上傳
+→ 讀取影片資訊
+→ 人體姿態偵測
+→ 關節節點可信度過濾
+→ 節點平滑處理
+→ 依拍攝角度選擇可用節點
+→ 計算基礎角度與位移
+→ 輸出 JSON
+→ 產生骨架與軌跡影片
+```
+
+---
+
+## 3. 使用者輸入資料
+
+```json
+{
+  "sportType": "badminton",
+  "movementType": "smash",
+  "cameraView": "rear_diagonal",
+  "dominantSide": "right",
+  "frameInterval": 1,
+  "generateSkeletonVideo": true,
+  "generateTrajectoryVideo": true
+}
+```
+
+## 欄位說明
+
+| 欄位                      | 用途       | 定義理由               |
+| ----------------------- | -------- | ------------------ |
+| sportType               | 運動類型     | 方便分類與後續資料管理        |
+| movementType            | 動作名稱     | 用來決定關注哪些節點，但不做品質判斷 |
+| cameraView              | 拍攝角度     | 不同角度可使用的節點與角度不同    |
+| dominantSide            | 慣用側      | 揮拍、投球、打擊時需辨識主要動作側  |
+| frameInterval           | 每幾幀分析一次  | 控制效能與資料量           |
+| generateSkeletonVideo   | 是否產生骨架影片 | 方便人工確認節點是否正確       |
+| generateTrajectoryVideo | 是否產生軌跡影片 | 方便觀察關節移動路徑         |
+
+---
+
+## 4. 支援拍攝角度
+
+建議統一定義：
+
+```text
+front
+rear
+side_left
+side_right
+front_diagonal_left
+front_diagonal_right
+rear_diagonal_left
+rear_diagonal_right
+unknown
+```
+
+定義理由：
+
+不同角度下，人體節點的可見度與投影誤差不同。
+
+例如：
+
+| 拍攝角度 | 適合觀察        |
+| ---- | ----------- |
+| 正面   | 左右肢體、肩髖水平位置 |
+| 側面   | 髖膝踝角度、軀幹傾斜  |
+| 後方   | 肩膀、骨盆、手臂路徑  |
+| 斜角   | 整體動作軌跡與部分旋轉 |
+
+系統只記錄與輸出，不判斷該角度是否代表正確動作。
+
+---
+
+## 5. 人體節點輸出
+
+每個分析幀輸出 MediaPipe 33 個人體節點。
+
+```json
+{
+  "index": 16,
+  "name": "RIGHT_WRIST",
+  "x": 0.712,
+  "y": 0.284,
+  "z": -0.193,
+  "pixelX": 1367,
+  "pixelY": 307,
+  "visibility": 0.94,
+  "presence": 0.91,
+  "status": "valid"
+}
+```
+
+## 欄位說明
+
+| 欄位            | 說明           |
+| ------------- | ------------ |
+| x、y           | 正規化影像座標      |
+| z             | 模型估算的相對深度    |
+| pixelX、pixelY | 對應原始影片像素位置   |
+| visibility    | 節點在畫面中的可見程度  |
+| presence      | 模型判定節點存在的可信度 |
+| status        | 節點資料狀態       |
+
+`status` 定義：
+
+```text
+valid
+low_visibility
+estimated
+missing
+```
+
+定義理由：
+
+不能只輸出座標，還需要標記該座標是否可信。
+
+---
+
+## 6. 每幀資料格式
+
+```json
+{
+  "frameIndex": 126,
+  "timeSec": 2.1,
+  "poseDetected": true,
+  "landmarks": [],
+  "jointAngles": {},
+  "derivedPoints": {},
+  "trajectoryPoints": {}
+}
+```
+
+## 欄位說明
+
+### landmarks
+
+該幀全部人體節點。
+
+### jointAngles
+
+由三個節點計算的基礎 2D 或近似 3D 角度。
+
+### derivedPoints
+
+程式推算的輔助位置，例如：
+
+```text
+shoulderCenter
+hipCenter
+bodyCenter
+leftFootCenter
+rightFootCenter
+```
+
+### trajectoryPoints
+
+指定節點的移動位置，供後續繪製軌跡。
+
+---
+
+## 7. 共用關節角度
+
+系統可統一計算：
+
+```text
+leftElbowAngleDeg
+rightElbowAngleDeg
+leftShoulderAngleDeg
+rightShoulderAngleDeg
+leftHipAngleDeg
+rightHipAngleDeg
+leftKneeAngleDeg
+rightKneeAngleDeg
+leftAnkleAngleDeg
+rightAnkleAngleDeg
+trunkLeanAngleDeg
+shoulderTiltAngleDeg
+pelvisTiltAngleDeg
+```
+
+定義理由：
+
+這些是多數健身、揮拍、投球與打擊動作可共用的基礎資料。
+
+系統只輸出角度數值，不判斷角度是否理想。
+
+---
+
+## 8. 基礎動態資料
+
+除座標外，建議輸出：
+
+```text
+displacement
+velocity
+acceleration
+movementDirection
+```
+
+例如：
+
+```json
+{
+  "rightWrist": {
+    "displacementNormalized": 0.031,
+    "velocityNormalizedPerSec": 1.82,
+    "accelerationNormalizedPerSec2": 4.15,
+    "directionDeg": 42.6
+  }
+}
+```
+
+定義理由：
+
+揮拍、投球、打擊等動作若只保留位置，後續難以分析移動軌跡與動作速度。
+
+這些資料仍屬量測結果，不代表動作品質。
+
+---
+
+## 9. 不同運動動作的節點規格
+
+每個動作只定義：
+
+1. 主要關節節點。
+2. 建議拍攝角度。
+3. 建議 FPS。
+4. 需要輸出的角度。
+5. 需要追蹤的軌跡節點。
+
+不定義品質標準或門檻。
+
+---
+
+## 10. 健身類動作規格
+
+### 10.1 深蹲
+
+主要節點：
+
+```text
+LEFT_SHOULDER
+RIGHT_SHOULDER
+LEFT_HIP
+RIGHT_HIP
+LEFT_KNEE
+RIGHT_KNEE
+LEFT_ANKLE
+RIGHT_ANKLE
+LEFT_HEEL
+RIGHT_HEEL
+LEFT_FOOT_INDEX
+RIGHT_FOOT_INDEX
+```
+
+輸出角度：
+
+```text
+leftKneeAngleDeg
+rightKneeAngleDeg
+leftHipAngleDeg
+rightHipAngleDeg
+leftAnkleAngleDeg
+rightAnkleAngleDeg
+trunkLeanAngleDeg
+```
+
+軌跡節點：
+
+```text
+hipCenter
+leftKnee
+rightKnee
+leftAnkle
+rightAnkle
+```
+
+定義理由：
+
+這些節點足以描述深蹲過程中的髖、膝、踝與軀幹移動。
+
+---
+
+### 10.2 硬舉
+
+主要節點：
+
+```text
+SHOULDERS
+HIPS
+KNEES
+ANKLES
+WRISTS
+```
+
+輸出角度：
+
+```text
+leftHipAngleDeg
+rightHipAngleDeg
+leftKneeAngleDeg
+rightKneeAngleDeg
+trunkLeanAngleDeg
+```
+
+軌跡節點：
+
+```text
+shoulderCenter
+hipCenter
+leftWrist
+rightWrist
+```
+
+定義理由：
+
+硬舉主要關注軀幹、髖膝與手部移動路徑。
+
+---
+
+### 10.3 弓箭步
+
+主要節點：
+
+```text
+HIPS
+KNEES
+ANKLES
+HEELS
+FOOT_INDEX
+```
+
+輸出角度：
+
+```text
+leftKneeAngleDeg
+rightKneeAngleDeg
+leftHipAngleDeg
+rightHipAngleDeg
+pelvisTiltAngleDeg
+trunkLeanAngleDeg
+```
+
+軌跡節點：
+
+```text
+hipCenter
+leftKnee
+rightKnee
+leftAnkle
+rightAnkle
+```
+
+---
+
+## 11. 羽球與網球規格
+
+### 11.1 羽球殺球／高遠球
+
+主要節點：
+
+```text
+SHOULDERS
+ELBOWS
+WRISTS
+HIPS
+KNEES
+ANKLES
+```
+
+主要輸出：
+
+```text
+racketSideShoulderAngleDeg
+racketSideElbowAngleDeg
+racketSideWristPosition
+shoulderTiltAngleDeg
+pelvisTiltAngleDeg
+trunkLeanAngleDeg
+```
+
+軌跡節點：
+
+```text
+racketSideWrist
+racketSideElbow
+racketSideShoulder
+hipCenter
+```
+
+若未來加入球拍偵測，可增加：
+
+```text
+racketHandlePoint
+racketHeadPoint
+racketHeadTrajectory
+```
+
+定義理由：
+
+只使用人體節點時，可輸出上肢與身體移動路徑，但不能精確代表球拍位置。
+
+---
+
+### 11.2 網球正手／反手
+
+主要節點：
+
+```text
+SHOULDERS
+ELBOWS
+WRISTS
+HIPS
+KNEES
+ANKLES
+```
+
+主要輸出：
+
+```text
+dominantShoulderAngleDeg
+dominantElbowAngleDeg
+dominantWristPosition
+shoulderCenterPosition
+hipCenterPosition
+```
+
+軌跡節點：
+
+```text
+dominantWrist
+dominantElbow
+shoulderCenter
+hipCenter
+```
+
+---
+
+### 11.3 網球發球
+
+主要節點：
+
+```text
+NOSE
+SHOULDERS
+ELBOWS
+WRISTS
+HIPS
+KNEES
+ANKLES
+```
+
+主要輸出：
+
+```text
+servingShoulderAngleDeg
+servingElbowAngleDeg
+servingWristHeightNormalized
+leftKneeAngleDeg
+rightKneeAngleDeg
+trunkLeanAngleDeg
+```
+
+軌跡節點：
+
+```text
+servingWrist
+servingElbow
+nonServingWrist
+hipCenter
+```
+
+---
+
+## 12. 棒球投球規格
+
+主要節點：
+
+```text
+SHOULDERS
+ELBOWS
+WRISTS
+HIPS
+KNEES
+ANKLES
+```
+
+主要輸出：
+
+```text
+throwingShoulderAngleDeg
+throwingElbowAngleDeg
+throwingWristPosition
+leadKneeAngleDeg
+trailKneeAngleDeg
+trunkLeanAngleDeg
+shoulderTiltAngleDeg
+pelvisTiltAngleDeg
+```
+
+軌跡節點：
+
+```text
+throwingWrist
+throwingElbow
+leadAnkle
+leadKnee
+shoulderCenter
+hipCenter
+```
+
+建議 FPS：
+
+```text
+最低 60 FPS
+較佳 120 FPS
+```
+
+定義理由：
+
+投球速度快，低 FPS 容易漏掉手臂位置與出手附近的影格。
+
+系統只輸出節點與路徑，不判斷投球技術。
+
+---
+
+## 13. 棒球打擊規格
+
+主要節點：
+
+```text
+SHOULDERS
+ELBOWS
+WRISTS
+HIPS
+KNEES
+ANKLES
+```
+
+主要輸出：
+
+```text
+leftElbowAngleDeg
+rightElbowAngleDeg
+leftKneeAngleDeg
+rightKneeAngleDeg
+shoulderTiltAngleDeg
+pelvisTiltAngleDeg
+trunkLeanAngleDeg
+```
+
+軌跡節點：
+
+```text
+leftWrist
+rightWrist
+shoulderCenter
+hipCenter
+leadKnee
+```
+
+若加入球棒偵測，可增加：
+
+```text
+batHandlePoint
+batHeadPoint
+batTrajectory
+```
+
+---
+
+## 14. 統一輸出 JSON
+
+```json
+{
+  "schemaVersion": "1.0",
+  "analysisId": "uuid",
+  "success": true,
+  "movement": {
+    "sportType": "baseball",
+    "movementType": "pitch",
+    "cameraView": "side_right",
+    "dominantSide": "right"
+  },
+  "videoInfo": {
+    "fps": 120,
+    "width": 1920,
+    "height": 1080,
+    "durationSec": 4.2,
+    "totalFrames": 504,
+    "analyzedFrameCount": 504,
+    "frameInterval": 1
+  },
+  "detectionInfo": {
+    "poseModel": "mediapipe_pose",
+    "averagePoseConfidence": 0.91,
+    "missingFrameCount": 5
+  },
+  "frames": [],
+  "trajectorySummary": {},
+  "outputFiles": {
+    "skeletonVideoUrl": null,
+    "trajectoryVideoUrl": null,
+    "rawJsonUrl": null
+  },
+  "warnings": []
+}
+```
+
+---
+
+## 15. 不再保留的欄位
+
+下列欄位應從規格移除：
+
+```text
+overallScore
+qualityAssessment
+qualityDimensions
+evaluations
+strengths
+issues
+recommendations
+referenceRange
+pass
+fail
+warning
+severity
+```
+
+移除理由：
+
+這些欄位都帶有動作品質判斷，不符合目前系統只輸出客觀節點資料的定位。
+
+---
+
+## 16. 可保留的警告
+
+`warnings` 只用於資料品質，不用於動作品質。
+
+例如：
+
+```json
+{
+  "code": "LOW_WRIST_VISIBILITY",
+  "message": "部分影格右手腕可見度偏低。"
+}
+```
+
+可使用的警告：
+
+```text
+LOW_LANDMARK_VISIBILITY
+BODY_OUT_OF_FRAME
+MULTIPLE_PEOPLE_DETECTED
+LOW_FPS
+MOTION_BLUR
+UNSUPPORTED_CAMERA_VIEW
+POSE_NOT_DETECTED
+```
+
+定義理由：
+
+這些警告描述的是「資料是否可靠」，不是「動作做得好不好」。
+
+---
+
+## 17. 系統模組
+
+```text
+VideoReader
+負責影片讀取與影格資訊。
+
+PoseEstimator
+負責人體節點偵測。
+
+LandmarkFilter
+負責可信度過濾、補值與平滑。
+
+JointAngleCalculator
+負責基礎角度計算。
+
+MotionFeatureCalculator
+負責位移、速度與方向。
+
+MovementDefinitionProvider
+依動作讀取主要節點與輸出設定。
+
+SkeletonVideoRenderer
+產生骨架標註影片。
+
+TrajectoryRenderer
+產生關節軌跡影片。
+
+AnalysisResultBuilder
+建立統一 JSON 結果。
+```
+
+---
+
+## 18. 開發原則
+
+```text
+MovementDefinition
+只決定要分析哪些節點。
+
+PoseEstimator
+只負責找出人體節點。
+
+FeatureCalculator
+只負責計算數值。
+
+Renderer
+只負責產生視覺化結果。
+
+系統不負責判斷動作好壞。
+```
+
+---
+
+## 19. 第一階段建議實作
+
+先支援三種差異較大的動作：
+
+```text
+深蹲
+羽球殺球
+棒球投球
+```
+
+每種動作完成：
+
+1. 主要關節節點擷取。
+2. 關節角度輸出。
+3. 關節移動軌跡。
+4. 骨架標註影片。
+5. 資料可信度警告。
+6. 統一 JSON 格式。
+
+此階段不建立規則引擎、評分系統或 LLM 回饋。

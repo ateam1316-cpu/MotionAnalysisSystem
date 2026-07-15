@@ -6,6 +6,10 @@ cd "c:\Users\websoft\Desktop\Ray\Websoft內部專案\MotionAnalysisSystem\Motion
 
 uvicorn main:app --reload --port 8000
 
+netstat -ano | findstr :8000 (查看監聽port的pid) (如果 ctrl+C 無法終止服務的話)
+
+
+
 http://127.0.0.1:8000/docs (開啟這個url)
 
 taskkill /PID 3868 /F

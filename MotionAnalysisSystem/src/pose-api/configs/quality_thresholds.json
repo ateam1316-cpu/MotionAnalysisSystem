@@ -1,0 +1,10 @@
+{
+  "borderMargin": 0.02,
+  "bodyOutOfFrameMinTorsoPoints": 2,
+  "bodyOutOfFrameFrameRatio": 0.2,
+  "laplacianBlurThreshold": 40.0,
+  "motionBlurFrameRatio": 0.35,
+  "lowVisibilityFrameRatio": 0.25,
+  "lowWristVisibility": 0.45,
+  "lowWristFrameRatio": 0.3
+}
